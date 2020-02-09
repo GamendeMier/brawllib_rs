@@ -18,7 +18,7 @@ use bones::Bone;
 use objects::Object;
 use definitions::Definitions;
 
-pub(crate) fn mdl0(data: FancySlice) -> Mdl0 {
+pub fn mdl0(data: FancySlice) -> Mdl0 {
     let _size        = data.i32_be(0x4);
     let version      = data.i32_be(0x8);
     let _bres_offset = data.i32_be(0xc);
@@ -153,8 +153,9 @@ pub struct Mdl0 {
 }
 
 impl Mdl0 {
-    pub fn compile(&self, bres_offset: i32) -> Vec<u8> {
+    pub fn compile(&self, bres_offset: i32) -> (Vec<u8>, Vec<(String, usize)>) {
         let mut output = vec!();
+        let mut names = vec!();
 
         // create mdl0 header
         output.extend("MDL0".chars().map(|x| x as u8));
@@ -201,6 +202,7 @@ impl Mdl0 {
             output.extend(&i32::to_be_bytes(0)); // TODO: An extra something ... goes here
         }
 
+        names.push((self.name.clone(), output.len()));
         output.extend(&i32::to_be_bytes(0)); // TODO: string_offset
 
         // TODO: Many of these should be generated rather than stored
@@ -226,7 +228,7 @@ impl Mdl0 {
 
         output.extend(definitions);
 
-        output
+        (output, names)
     }
 }
 

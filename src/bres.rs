@@ -6,7 +6,7 @@ use crate::chr0::*;
 use crate::mdl0::*;
 use crate::plt0::*;
 
-pub(crate) fn bres(data: FancySlice) -> Bres {
+pub fn bres(data: FancySlice) -> Bres {
     let endian         = data.u16_be(0x4);
     let version        = data.u16_be(0x6);
     //let size         = data.u32_be(0x8);
@@ -54,6 +54,7 @@ pub struct Bres {
 impl Bres {
     pub fn compile(&self) -> Vec<u8> {
         let mut output = vec!();
+        // let mut names = vec!(); // TODO: write names
         let mut root_output: Vec<u8> = vec!();
 
         let root_size = ROOT_HEADER_SIZE
@@ -113,7 +114,7 @@ impl Bres {
                         }
                         child_offset += leaf_children_size;
 
-                        let child_output = child.compile(-child_offset);
+                        let (child_output, child_names) = child.compile(-child_offset);
 
                         leaf_children_size = if let Some(result) = leaf_children_size.checked_add(child_output.len() as i32) {
                             result
@@ -190,20 +191,23 @@ fn most_significant_different_bit(b0: u8, b1: u8) -> u8 {
 }
 
 impl BresChild {
-    pub fn compile(&self, bres_offset: i32) -> Vec<u8> {
+    pub fn compile(&self, bres_offset: i32) -> (Vec<u8>, Vec<(String, usize)>) {
         match &self.data {
             BresChildData::Bres (children) => {
                 let mut output = vec!();
+                let mut names = vec!();
 
                 for child in children {
-                    output.extend(child.compile(bres_offset));
+                    let (child_output, child_names) = child.compile(bres_offset);
+                    names.extend(child_names.iter().map(|(name, pos)| (name.clone(), pos + output.len())));
+                    output.extend(child_output);
                 }
 
-                output
+                (output, names)
             }
             BresChildData::Mdl0 (child) => child.compile(bres_offset),
-            BresChildData::Plt0 (child) => child.compile(bres_offset),
-            _ => vec!(),
+            BresChildData::Plt0 (child) => (child.compile(bres_offset), vec!()), // TODO: fix the names
+            _ => (vec!(), vec!()),
         }
     }
 
@@ -247,3 +251,20 @@ pub enum BresChildData {
     Unknown (String)
 }
 
+
+#[cfg(test)]
+mod tests {
+    use std::io::{self, Write};
+    use std::fs;
+    use fancy_slice::FancySlice;
+
+    #[test]
+    fn compile_bres() {
+        let itembox = fs::read("/home/mier/Downloads/old_koopa_gba.d/itembox.brres")
+            .unwrap();
+
+        let itembox_bres = super::bres(FancySlice::new(&itembox));
+
+        io::stdout().write(&itembox_bres.compile2()).unwrap();
+    }
+}
